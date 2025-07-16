@@ -1,19 +1,20 @@
 """
-Main Streamlit application for the RAG Invoice Q&A Assistant
-Refactored version with modular architecture
+Simplified version of the Invoice Q&A Assistant
+Falls back gracefully if modules have issues
 """
 import streamlit as st
 
-# Set up basic page first
+# Basic page setup first
 st.title("🧾 Invoice Q&A Assistant")
 st.markdown("Upload an invoice PDF and ask questions about vendor details, amounts, dates, line items, and more.")
 
 try:
+    # Try to import all required modules
     from langchain_community.llms import Ollama
     from langchain.chains.llm import LLMChain
     from langchain.chains.combine_documents.stuff import StuffDocumentsChain
     from langchain.chains import RetrievalQA
-
+    
     # Import custom modules
     from config import AppConfig, PromptTemplates, get_app_title, get_app_description, get_tab_names
     from database_manager import DatabaseManager
@@ -22,13 +23,8 @@ try:
     from utils import create_collection_name
     
     st.success("✅ All modules loaded successfully!")
-    modules_loaded = True
-except Exception as e:
-    st.error(f"❌ Module import failed: {e}")
-    st.info("🔧 Please ensure all required packages are installed")
-    modules_loaded = False
-
-if modules_loaded:
+    
+    # Continue with the main app logic
     class InvoiceQAApp:
         """Main application class for Invoice Q&A Assistant"""
         
@@ -48,14 +44,14 @@ if modules_loaded:
                 st.success("✅ App initialized successfully!")
             except Exception as e:
                 st.error(f"❌ App initialization failed: {e}")
-                raise
+                raise e
         
         def run(self):
             """Run the main application"""
             try:
                 self._render_main_interface()
             except Exception as e:
-                st.error(f"❌ Error running main interface: {e}")
+                st.error(f"❌ Error running app: {e}")
                 st.exception(e)
         
         def _render_main_interface(self):
@@ -72,19 +68,19 @@ if modules_loaded:
         def _render_document_qa_tab(self):
             """Render the Document Q&A tab"""
             st.markdown("### Document Q&A Interface")
-
+            
             try:
                 # Get available collections and render selector
                 available_collections = self.db_manager.get_available_collections()
                 collection_selector = CollectionSelector(available_collections)
                 tenant_id, document_type = collection_selector.render()
-
+                
                 # Check for existing collection
                 collection_name = create_collection_name(tenant_id, document_type)
                 existing_db, collection_exists, documents = self.db_manager.load_existing_collection(
                     tenant_id, document_type
                 )
-
+                
                 if collection_exists:
                     st.success(f"📁 **Found existing collection:** {collection_name} ({len(documents)} chunks)")
                     st.info("✨ **You can query this collection directly without uploading a file!**")
@@ -108,7 +104,7 @@ if modules_loaded:
                     if db is not None:
                         self._setup_query_interface(db, documents, tenant_id, document_type, collection_name)
             except Exception as e:
-                st.error(f"❌ Error in Document Q&A tab: {e}")
+                st.error(f"❌ Error in document Q&A tab: {e}")
                 st.exception(e)
         
         def _handle_document_processing(
@@ -195,9 +191,10 @@ if modules_loaded:
                 collection_overview = CollectionOverview(self.db_manager)
                 collection_overview.render()
             except Exception as e:
-                st.error(f"❌ Error in Collections Overview: {e}")
+                st.error(f"❌ Error in collections overview: {e}")
                 st.exception(e)
 
+    # Run the app
     def main():
         """Main entry point"""
         try:
@@ -206,22 +203,22 @@ if modules_loaded:
         except Exception as e:
             st.error(f"❌ Failed to start application: {e}")
             st.exception(e)
+            st.info("💡 Try refreshing the page or check the console for more details.")
 
     if __name__ == "__main__":
         main()
 
-else:
-    st.warning("⚠️ Application modules could not be loaded.")
-    st.info("💡 The app cannot run without the required dependencies.")
-    
-    with st.expander("📋 Installation Instructions"):
-        st.code("""
-# Install required packages
+except ImportError as e:
+    st.error(f"❌ Import Error: {e}")
+    st.info("🔧 Please ensure all required packages are installed:")
+    st.code("""
 pip install streamlit langchain langchain-community langchain-experimental
 pip install chromadb transformers sentence-transformers
 pip install pypdf pdfplumber
+    """)
+    st.info("💡 You may also need to install ollama and download the deepseek-r1:8b model")
 
-# Install Ollama and download model
-# Visit https://ollama.ai/ for Ollama installation
-ollama pull deepseek-r1:8b
-        """)
+except Exception as e:
+    st.error(f"❌ Unexpected Error: {e}")
+    st.exception(e)
+    st.info("💡 There seems to be an issue with the application setup. Please check the error details above.")
